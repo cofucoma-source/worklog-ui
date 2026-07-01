@@ -1024,16 +1024,29 @@ function switchTab(t) {
 // 日付更新
 setInterval(updateAttDate, 60000)
 
-// GAS URL が未設定の場合は設定タブを促す
-if (!GAS_URL) {
-  setTimeout(()=>{
+// アプリ本体に埋め込まれた接続設定を取り込む（スタッフは設定入力不要）
+async function bootConfig() {
+  try {
+    if (window.electronAPI && window.electronAPI.getConfig) {
+      const cfg = await window.electronAPI.getConfig()
+      if (cfg) {
+        if (cfg.gasUrl)         { GAS_URL = cfg.gasUrl; localStorage.setItem('gasUrl', cfg.gasUrl) }
+        if (cfg.googleClientId) { GOOGLE_CLIENT_ID = cfg.googleClientId; localStorage.setItem('googleClientId', cfg.googleClientId) }
+        const g  = document.getElementById('setGasUrl');   if (g)  g.value  = GAS_URL
+        const ci = document.getElementById('setClientId'); if (ci) ci.value = GOOGLE_CLIENT_ID
+      }
+    }
+  } catch(e) {}
+  // 設定が取れていればここはスキップ。無ければ設定タブを促す。
+  if (!GAS_URL) {
     document.getElementById('loginScreen').classList.remove('show')
     document.getElementById('mainScreen').classList.add('show')
     switchTab('settings')
     showErr('最初にGAS URLを設定してください')
-    document.getElementById('setGasUrl').focus()
-  }, 500)
+    const g = document.getElementById('setGasUrl'); if (g) g.focus()
+  }
 }
+bootConfig()
 </script>
 </body>
 </html>
