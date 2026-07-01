@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline'; connect-src https:; img-src 'self' data: https:">
+<title>ワークログ</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --p:#2563eb;--ph:#1d4ed8;--pb:#eff6ff;--pbd:#bfdbfe;
+  --bg:#f4f7fb;--bg2:#fff;--bg3:#f8fafc;--bg4:#f1f5f9;
+  --border:#e2e8f0;--border2:#cbd5e1;
+  --text:#1e293b;--t2:#64748b;--t3:#94a3b8;
+  --ok:#059669;--okb:#ecfdf5;--okbd:#a7f3d0;
+  --warn:#d97706;--warnb:#fffbeb;--warnbd:#fde68a;
+  --red:#dc2626;--redb:#fef2f2;--redbd:#fecaca;
+  --mono:'Courier New',monospace;--r:8px;--r2:12px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Helvetica Neue',sans-serif;font-size:13px;line-height:1.5;display:flex;flex-direction:column}
+
+/* TITLE BAR */
+.title-bar{
+  height:36px;background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px;gap:8px;
+  -webkit-app-region:drag; /* ドラッグでウィンドウ移動 */
+  flex-shrink:0;
+}
+.tb-logo{font-size:13px;font-weight:600;color:var(--p);-webkit-app-region:no-drag}
+.tb-spacer{flex:1}
+.tb-btn{
+  background:none;border:none;color:var(--t3);cursor:pointer;
+  font-size:12px;padding:3px 7px;border-radius:4px;
+  -webkit-app-region:no-drag;transition:all .15s;
+}
+.tb-btn:hover{background:var(--bg4);color:var(--text)}
+.tb-status{font-size:11px;color:var(--t3);-webkit-app-region:no-drag}
+
+/* SCREENS */
+.screen{display:none;flex:1;overflow:hidden;flex-direction:column}
+.screen.show{display:flex}
+
+/* LOGIN */
+.login-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#dbeafe,#eff6ff 55%,#e0f2fe)}
+.logincard{display:flex;flex-direction:column;white-space:normal;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px 24px;width:300px;text-align:center;box-shadow:0 4px 16px rgba(37,99,235,.08)}
+.lc-logo{font-size:32px;margin-bottom:10px}
+.lc-title{font-size:17px;font-weight:600;margin-bottom:4px}
+.lc-sub{font-size:12px;color:var(--t2);margin-bottom:20px;line-height:1.6}
+.g-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;background:var(--bg2);border:1.5px solid var(--border2);border-radius:9px;color:var(--text);cursor:pointer;font-size:13px;font-weight:500;padding:10px;transition:all .15s;margin-bottom:10px}
+.g-btn:hover{border-color:var(--pbd);background:var(--pb)}
+.divider{display:flex;align-items:center;gap:8px;margin:8px 0;color:var(--t3);font-size:11px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.name-inp{width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;padding:9px 12px;outline:none;margin-bottom:8px;font-family:inherit;transition:border-color .15s}
+.name-inp:focus{border-color:var(--p)}
+.start-btn{width:100%;background:var(--p);border:none;border-radius:9px;color:#fff;cursor:pointer;font-size:13px;font-weight:500;padding:10px;transition:background .15s}
+.start-btn:hover{background:var(--ph)}
+.lc-note{font-size:10px;color:var(--t3);margin-top:10px;line-height:1.6}
+
+/* MAIN APP */
+.app-body{flex:1;overflow-y:auto;padding:12px 14px}
+.app-body::-webkit-scrollbar{width:4px}
+.app-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* NAV TABS */
+.tabs{display:flex;gap:2px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:3px;margin-bottom:12px}
+.tab-btn{flex:1;background:none;border:none;color:var(--t2);cursor:pointer;font-size:12px;padding:5px 8px;border-radius:7px;transition:all .15s;text-align:center}
+.tab-btn:hover{background:var(--bg2);color:var(--text)}
+.tab-btn.active{background:var(--bg2);color:var(--p);font-weight:500;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.tab-view{display:none}.tab-view.active{display:block}
+
+/* 出退勤カード */
+.att-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:18px 16px;margin-bottom:10px;text-align:center;transition:border-color .3s}
+.att-card.working{border-color:var(--p)}
+.att-card.break{border-color:var(--warn)}
+.att-card.done{border-color:var(--okbd)}
+.att-date{font-size:11px;color:var(--t3);margin-bottom:12px}
+.ci-btn{display:inline-flex;align-items:center;gap:8px;background:var(--p);border:none;border-radius:12px;color:#fff;cursor:pointer;font-size:16px;font-weight:600;padding:14px 36px;transition:all .2s}
+.ci-btn:hover{background:var(--ph);transform:scale(1.02)}
+.ci-btn:active{transform:scale(.97)}
+.ci-hint{font-size:11px;color:var(--t3);margin-top:8px}
+.ws-label{display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;color:var(--p);font-weight:500;margin-bottom:4px}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--p);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.82)}}
+.main-timer{font-family:var(--mono);font-size:40px;font-weight:300;letter-spacing:.02em;color:var(--text);margin:4px 0}
+.main-timer.break-mode{color:var(--warn)}
+.timer-lbl{font-size:10px;color:var(--t3);margin-bottom:12px}
+.att-since{font-size:11px;color:var(--t2);margin-bottom:14px}
+.att-btns{display:flex;gap:8px;justify-content:center}
+.break-btn{background:var(--warnb);border:1.5px solid var(--warnbd);border-radius:9px;color:var(--warn);cursor:pointer;font-size:13px;font-weight:500;padding:9px 18px;transition:all .15s}
+.break-btn:hover{background:var(--warn);color:#fff}
+.co-btn{background:var(--redb);border:1.5px solid var(--redbd);border-radius:9px;color:var(--red);cursor:pointer;font-size:13px;font-weight:500;padding:9px 18px;transition:all .15s}
+.co-btn:hover{background:var(--red);color:#fff}
+.eb-btn{background:var(--pb);border:1.5px solid var(--pbd);border-radius:9px;color:var(--p);cursor:pointer;font-size:13px;font-weight:500;padding:9px 22px;transition:all .15s}
+.eb-btn:hover{background:var(--p);color:#fff}
+.bco-btn{background:none;border:1px solid var(--border2);border-radius:9px;color:var(--t2);cursor:pointer;font-size:12px;padding:8px 14px;transition:all .15s}
+.bco-btn:hover{border-color:var(--redbd);color:var(--red)}
+.done-hd{font-size:14px;font-weight:500;color:var(--ok);margin-bottom:12px}
+.done-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.done-item{background:var(--bg3);border-radius:var(--r);padding:8px 10px;text-align:left}
+.done-lbl{font-size:10px;color:var(--t3);letter-spacing:.04em;margin-bottom:1px}
+.done-val{font-family:var(--mono);font-size:14px;color:var(--text)}
+.done-work{background:var(--okb);border:1px solid var(--okbd);border-radius:var(--r);padding:10px;text-align:center}
+.done-work-lbl{font-size:10px;color:var(--ok);margin-bottom:2px}
+.done-work-v{font-family:var(--mono);font-size:24px;color:var(--ok);font-weight:400}
+.done-work-sub{font-size:10px;color:var(--ok);opacity:.7;margin-top:1px}
+
+/* アイドルバナー */
+.idle-banner{background:var(--warnb);border:1px solid var(--warnbd);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--warn);display:none;align-items:center;gap:8px;margin-bottom:8px}
+.idle-banner.show{display:flex}
+.ib-btns{display:flex;gap:5px;margin-left:auto;flex-shrink:0}
+.ib-btn{background:none;border:1px solid var(--warnbd);border-radius:4px;color:var(--warn);cursor:pointer;font-size:10px;padding:2px 8px;transition:all .15s}
+.ib-btn:hover{background:var(--warn);color:#fff;border-color:var(--warn)}
+
+/* 作業メモ */
+.memo-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 12px;margin-bottom:8px}
+.ms-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.ms-ttl{font-size:10px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;flex:1}
+.memo-row{display:flex;gap:5px;margin-bottom:6px}
+.memo-inp{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 10px;outline:none;font-family:inherit;transition:border-color .15s}
+.memo-inp:focus{border-color:var(--p)}
+.memo-cnt{width:60px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:6px 7px;outline:none;font-family:var(--mono);text-align:center;transition:border-color .15s}
+.memo-cnt:focus{border-color:var(--p)}
+.memo-add{background:var(--p);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;font-weight:500;padding:6px 11px;transition:background .15s;white-space:nowrap}
+.memo-add:hover{background:var(--ph)}
+.ai-hint{font-size:10px;color:var(--t3);min-height:13px;margin-bottom:5px}
+.log-list{max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.li{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;display:flex;align-items:center;gap:5px;font-size:11px}
+.lt{font-size:10px;padding:1px 6px;border-radius:10px;font-weight:500;flex-shrink:0}
+.ln{flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-{font-size:10px;color:var(--t3);font-family:var(--mono);white-space:nowrap}
+.ld{background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;line-height:1;padding:0 1px;transition:color .15s}
+.ld:hover{color:var(--red)}
+.empty-li{padding:10px;text-align:center;color:var(--t3);font-size:11px}
+
+/* CAT */
+.c-資料作成{background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe}
+.c-MTG打合せ{background:#ecfdf5;color:#059669;border:1px solid #a7f3d0}
+.c-メール連絡{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.c-開発実装{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe}
+.c-調査リサーチ{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
+.c-営業活動{background:#fff7ed;color:#ea580c;border:1px solid #fed7aa}
+.c-事務処理,.c-その他{background:#f8fafc;color:#64748b;border:1px solid #e2e8f0}
+
+/* 実績グラフ */
+.graph-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 13px;margin-bottom:8px}
+.gc-ttl{font-size:10px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px}
+.week-bars{display:flex;gap:4px;align-items:flex-end;height:80px}
+.wb-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.wb-v{font-size:8px;color:var(--t3);font-family:var(--mono)}
+.wb-wrap{flex:1;width:100%;display:flex;align-items:flex-end}
+.wb{width:100%;border-radius:3px 3px 0 0;background:var(--pb);min-height:2px;transition:height .4s}
+.wb.today{background:var(--p)}.wb.has{background:#93c5fd}
+.wb-d{font-size:9px;color:var(--t3)}.wb-d.today{color:var(--p);font-weight:600}
+.mp-row{display:flex;align-items:center;gap:8px;padding-top:10px;border-top:1px solid var(--border);margin-top:4px}
+.mp-lbl{font-size:11px;color:var(--t2);flex:1;line-height:1.5}
+.mp-bw{flex:2;background:var(--bg4);border-radius:3px;height:6px;overflow:hidden}
+.mp-b{height:100%;background:var(--p);border-radius:3px;transition:width .4s}
+.mp-v{font-family:var(--mono);font-size:12px;color:var(--p);min-width:36px;text-align:right}
+.att-hist{display:flex;flex-direction:column;gap:3px}
+.ah-row{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:6px 10px;display:flex;align-items:center;gap:8px;font-size:11px}
+.ah-date{color:var(--t2);min-width:68px}
+.ah-time{font-family:var(--mono);font-size:11px;color:var(--text)}
+.ah-sep{color:var(--t3)}
+.ah-brk{color:var(--t3);font-size:10px}
+.ah-work{font-family:var(--mono);font-size:12px;color:var(--ok);font-weight:500;margin-left:auto}
+
+/* タイムシート */
+.ts-sel{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;padding:6px 9px;outline:none;cursor:pointer;margin-bottom:10px}
+.ts-sel:focus{border-color:var(--p)}
+.ts-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 13px;margin-bottom:8px}
+.ts-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ts-ttl{font-size:13px;font-weight:500;flex:1}
+.spill{font-size:10px;padding:3px 9px;border-radius:20px;font-weight:500}
+.spill.draft{background:var(--bg4);color:var(--t2);border:1px solid var(--border)}
+.spill.submitted{background:var(--warnb);color:var(--warn);border:1px solid var(--warnbd)}
+.spill.approved{background:var(--okb);color:var(--ok);border:1px solid var(--okbd)}
+.ts-nums{display:flex;gap:8px;margin-bottom:12px}
+.tsn{flex:1;background:var(--pb);border-radius:var(--r);padding:8px 10px;text-align:center}
+.tsn-v{font-family:var(--mono);font-size:16px;color:var(--p)}.tsn-l{font-size:9px;color:var(--t2);margin-top:1px}
+.ts-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
+.ts-tbl th{font-size:9px;color:var(--t3);letter-spacing:.05em;text-transform:uppercase;padding:2px 0;border-bottom:1px solid var(--border);font-weight:400;text-align:left}
+.ts-tbl td{padding:4px 0;border-bottom:1px solid var(--border);color:var(--t2)}
+.ts-tbl tr:last-child td{border-bottom:none}.ts-tbl .r{text-align:right;font-family:var(--mono);color:var(--text)}
+.sub-btn{width:100%;background:var(--p);border:none;border-radius:var(--r);color:#fff;cursor:pointer;font-size:13px;font-weight:500;padding:9px;transition:background .15s}
+.sub-btn:hover{background:var(--ph)}.sub-btn:disabled{background:var(--bg4);color:var(--t3);cursor:default}
+.stmt-box{background:var(--okb);border:1.5px solid var(--okbd);border-radius:var(--r);padding:12px;margin-top:8px}
+.stmt-box-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.stmt-box-ttl{font-size:12px;font-weight:500}.stmt-box-pd{font-size:10px;color:var(--t2)}
+.stmt-tot{display:flex;justify-content:space-between;align-items:baseline;padding-top:8px;border-top:1px solid var(--okbd)}
+.stmt-tot-l{font-size:11px;color:var(--t2)}.stmt-tot-v{font-family:var(--mono);font-size:20px;color:var(--p)}
+
+/* 設定 */
+.settings-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 13px;margin-bottom:8px}
+.set-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.set-row:last-child{border-bottom:none}
+.set-lbl{font-size:12px;flex:1;color:var(--text)}
+.set-sub{font-size:10px;color:var(--t3);margin-top:1px}
+.set-inp{flex:2;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:5px 8px;outline:none;font-family:var(--mono);transition:border-color .15s}
+.set-inp:focus{border-color:var(--p)}
+.set-save{background:var(--p);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;font-weight:500;padding:5px 12px;transition:background .15s;white-space:nowrap}
+.set-save:hover{background:var(--ph)}
+.toggle{width:36px;height:20px;border-radius:10px;background:var(--border2);border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--p)}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle.on::after{transform:translateX(16px)}
+
+
+/* TASK BUTTONS */
+.memo-section{border:1px solid var(--border);border-radius:var(--r2);padding:10px 12px;margin-bottom:8px}
+.ms-head{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.ms-ttl{font-size:10px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;flex:1}
+.ms-role{font-size:10px;color:var(--t2);background:var(--pb);border:0.5px solid var(--pbd);border-radius:10px;padding:2px 8px}
+.cat-block{margin-bottom:8px}
+.cat-label{font-size:9px;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px;padding-left:2px}
+.task-btns{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:2px}
+.task-btn{background:var(--bg3);border:1px solid var(--border);border-radius:20px;color:var(--t2);cursor:pointer;font-size:11px;padding:4px 10px;transition:all .15s;text-align:left;display:flex;align-items:center;gap:5px}
+.task-btn:hover{border-color:var(--pbd);background:var(--pb);color:var(--p)}
+.task-btn .tb-name{font-size:11px}
+.task-btn .tb-min{font-size:9px;color:var(--t3)}
+.task-btn:hover .tb-min{color:var(--p)}
+.selected-tasks{display:flex;flex-direction:column;gap:4px;margin-top:6px;border-top:1px solid var(--border);padding-top:6px}
+.sel-task{background:var(--pb);border:1px solid var(--pbd);border-radius:6px;padding:5px 9px;display:flex;align-items:center;gap:6px}
+.st-name{font-size:11px;color:var(--p);flex:1}
+.st-counter{display:flex;align-items:center;gap:4px}
+.st-minus,.st-plus{background:var(--bg2);border:1px solid var(--pbd);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--p);line-height:1;padding:0}
+.st-minus:hover,.st-plus:hover{background:var(--p);color:#fff;border-color:var(--p)}
+.st-count{font-family:var(--mono);font-size:12px;color:var(--p);min-width:14px;text-align:center}
+.st-time{font-size:10px;color:var(--p);min-width:28px;text-align:right}
+.st-del{background:none;border:none;color:var(--t3);cursor:pointer;font-size:12px;padding:0 2px;transition:color .15s}
+.st-del:hover{color:var(--red)}
+.memo-save-btn{width:100%;background:var(--p);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:500;padding:7px;margin-top:6px;transition:background .15s}
+.memo-save-btn:hover{background:var(--ph)}
+.log-list{max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;margin-top:5px}
+.li{background:var(--bg3);border:1px solid var(--border);border-radius:5px;padding:5px 9px;display:flex;align-items:center;gap:5px;font-size:11px}
+.lt{font-size:9px;padding:1px 6px;border-radius:10px;font-weight:500;flex-shrink:0;background:var(--pb);color:var(--p);border:1px solid var(--pbd)}
+.ln{flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc{font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap}
+.ld{background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;line-height:1;padding:0 1px;transition:color .15s}
+.ld:hover{color:var(--red)}
+.empty-li{padding:8px;text-align:center;color:var(--t3);font-size:11px}
+.api-err{background:var(--redb);border:1px solid var(--redbd);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--red);margin-bottom:8px;display:none}
+</style>
+</head>
+<body>
+
+<!-- タイトルバー -->
+<div class="title-bar">
+  <span class="tb-logo">📋 ワークログ</span>
+  <span class="tb-status" id="tbStatus"></span>
+  <span class="tb-spacer"></span>
+  <button class="tb-btn" onclick="switchToSettings()" title="設定">⚙</button>
+  <button class="tb-btn" onclick="window.electronAPI.minimizeToTray()" title="トレイに格納">—</button>
+</div>
+
+<!-- ログイン画面 -->
+<div class="screen show" id="loginScreen">
+<div class="login-wrap">
+<div class="logincard">
+  <div class="lc-logo">📋</div>
+  <div class="lc-title">ワークログ</div>
+  <div class="lc-sub">出勤ボタンを押した時刻から<br>退勤まで自動で計測します</div>
+  <div id="gsiBtn">
+    <button class="g-btn" onclick="googleSignIn()">
+      <span style="font-weight:700;color:#4285F4;font-size:15px">G</span> Googleでログイン
+    </button>
+  </div>
+  <div class="divider" id="orDiv">または名前でログイン（仮）</div>
+  <input class="name-inp" id="nameInput" type="text" placeholder="あなたの名前を入力" maxlength="30">
+  <button class="start-btn" onclick="loginWithName()">名前でログイン →</button>
+  <div class="lc-note" id="lcNote">Googleログインには設定タブで GAS URL・Client ID・Client Secret の入力が必要です</div>
+</div>
+</div>
+</div>
+
+<!-- メイン画面 -->
+<div class="screen" id="mainScreen">
+<div class="app-body">
+  <div class="api-err" id="apiErr"></div>
+
+  <!-- タブ -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-att" onclick="switchTab('att')">出退勤</button>
+    <button class="tab-btn" id="tab-graph" onclick="switchTab('graph')">実績</button>
+    <button class="tab-btn" id="tab-sheet" onclick="switchTab('sheet')">明細</button>
+    <button class="tab-btn" id="tab-settings" onclick="switchTab('settings')">設定</button>
+  </div>
+
+  <!-- 出退勤タブ -->
+  <div class="tab-view active" id="view-att">
+
+    <!-- アイドルバナー -->
+    <div class="idle-banner" id="idleBanner">
+      <span style="flex:1">離席して15分経ちました。ZOOM・LINE 対応中の場合は「対応中」を押してください。</span>
+      <div class="ib-btns">
+        <button class="ib-btn" onclick="dismissIdle()">対応中</button>
+        <button class="ib-btn" onclick="goBreak()">休憩へ</button>
+      </div>
+    </div>
+
+    <!-- 出退勤カード -->
+    <div class="att-card" id="attCard">
+      <div class="att-date" id="attDate"></div>
+
+      <div id="stateOff">
+        <button class="ci-btn" onclick="doClockin()">出勤する</button>
+        <div class="ci-hint">このボタンを押した時刻から時給が発生します</div>
+      </div>
+
+      <div id="stateWorking" style="display:none">
+        <div class="ws-label"><div class="pulse"></div>出勤中</div>
+        <div class="main-timer" id="mainTimer">00:00:00</div>
+        <div class="timer-lbl">実働時間</div>
+        <div class="att-since" id="attSince"></div>
+        <div class="att-btns">
+          <button class="break-btn" onclick="goBreak()">☕ 休憩</button>
+          <button class="co-btn" onclick="doClockin_out()">退勤する</button>
+        </div>
+      </div>
+
+      <div id="stateBreak" style="display:none">
+        <div class="ws-label" style="color:var(--warn)"><div class="pulse" style="background:var(--warn)"></div>休憩中</div>
+        <div class="main-timer break-mode" id="breakTimer">00:00:00</div>
+        <div class="timer-lbl" style="color:var(--warn)">休憩時間</div>
+        <div class="att-since" id="breakSince"></div>
+        <div class="att-btns">
+          <button class="eb-btn" onclick="endBreak()">休憩終了</button>
+          <button class="bco-btn" onclick="doClockin_out()">そのまま退勤</button>
+        </div>
+      </div>
+
+      <div id="stateDone" style="display:none">
+        <div class="done-hd">✓ お疲れ様でした</div>
+        <div class="done-grid">
+          <div class="done-item"><div class="done-lbl">出勤</div><div class="done-val" id="doneIn">—</div></div>
+          <div class="done-item"><div class="done-lbl">退勤</div><div class="done-val" id="doneOut">—</div></div>
+          <div class="done-item"><div class="done-lbl">休憩</div><div class="done-val" id="doneBreak">—</div></div>
+          <div class="done-item"><div class="done-lbl">在席</div><div class="done-val" id="doneTot">—</div></div>
+        </div>
+        <div class="done-work">
+          <div class="done-work-lbl">本日の実働時間（時給発生）</div>
+          <div class="done-work-v" id="doneWork">0:00</div>
+          <div class="done-work-sub" id="doneWorkSub"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 作業メモ（出勤中のみ） -->
+    <div class="memo-section" id="memoSection" style="display:none">
+      <div class="ms-head">
+        <span class="ms-ttl">今日の作業（必須・退勤前に記録）</span>
+        <span class="ms-role" id="roleLabel">—</span>
+      </div>
+      <div id="taskButtonArea"></div>
+      <div class="selected-tasks" id="selectedTasks" style="display:none"></div>
+      <button class="memo-save-btn" id="memoSaveBtn" onclick="saveMemo()" style="display:none">記録する</button>
+      <div class="log-list" id="logList">
+        <div class="empty-li" id="emptyLog">まだ記録がありません</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 実績タブ -->
+  <div class="tab-view" id="view-graph">
+    <div class="graph-card">
+      <div class="gc-ttl">今週の稼働時間</div>
+      <div class="week-bars" id="weekBars"></div>
+    </div>
+    <div class="graph-card">
+      <div class="gc-ttl">今月の進捗</div>
+      <div id="monthProg"></div>
+    </div>
+    <div class="graph-card">
+      <div class="gc-ttl">今月の出勤履歴</div>
+      <div class="att-hist" id="attHist"></div>
+    </div>
+  </div>
+
+  <!-- 明細タブ -->
+  <div class="tab-view" id="view-sheet">
+    <select class="ts-sel" id="sheetSel" onchange="renderSheet()"></select>
+    <div id="sheetContent"></div>
+  </div>
+
+  <!-- 設定タブ -->
+  <div class="tab-view" id="view-settings">
+    <div class="settings-section">
+      <div style="font-size:10px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px">接続設定</div>
+      <div class="set-row">
+        <div style="flex:1"><div class="set-lbl">GAS URL</div><div class="set-sub">Google Apps Script のデプロイURL</div></div>
+        <input class="set-inp" id="setGasUrl" type="text" placeholder="https://script.google.com/macros/s/...">
+      </div>
+      <div class="set-row">
+        <div style="flex:1"><div class="set-lbl">Google Client ID</div><div class="set-sub">Googleログイン用（Google CloudのOAuthクライアントID）</div></div>
+        <input class="set-inp" id="setClientId" type="text" placeholder="xxxxx.apps.googleusercontent.com">
+      </div>
+      <div class="set-row">
+        <div style="flex:1"><div class="set-lbl">Google Client Secret</div><div class="set-sub">同上（クライアントシークレット）</div></div>
+        <input class="set-inp" id="setClientSecret" type="password" placeholder="GOCSPX-...">
+      </div>
+      <div class="set-row" style="justify-content:flex-end">
+        <button class="set-save" onclick="saveSettings()">接続設定を保存</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div style="font-size:10px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px">アプリ設定</div>
+      <div class="set-row">
+        <div style="flex:1"><div class="set-lbl">ログイン時に自動起動</div><div class="set-sub">PCを起動したら自動でアプリを開始</div></div>
+        <button class="toggle" id="autoStartToggle" onclick="toggleAutoStart()"></button>
+      </div>
+      <div class="set-row">
+        <div style="flex:1"><div class="set-lbl">担当</div><div class="set-sub">作業ボタンの表示内容が変わります</div></div>
+        <select id="roleSelect" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:5px 8px;outline:none" onchange="saveRole()">
+          <option value="">選択してください</option>
+          <option value="ディレクター">ディレクター</option>
+          <option value="サブ">サブ</option>
+          <option value="システム">システム</option>
+          <option value="事務">事務</option>
+          <option value="制作者">制作者</option>
+        </select>
+      </div>
+      <div class="set-row">
+        <div style="flex:1"><div class="set-lbl">ログインユーザー</div><div class="set-sub" id="setUserName">—</div></div>
+        <button class="set-save" onclick="doLogout()" style="background:var(--redb);border:1px solid var(--redbd);color:var(--red)">ログアウト</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div style="font-size:10px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px">使い方</div>
+      <div style="font-size:11px;color:var(--t2);line-height:1.9">
+        ① 出勤ボタンを押す → 計測開始<br>
+        ② 昼休みは「☕ 休憩」→「休憩終了」<br>
+        ③ 仕事を終えたら「退勤する」<br>
+        ④ 月末にタイムシートを提出<br>
+        <br>
+        ✓ OS全体のアイドル検知（ブラウザ不要）<br>
+        ✓ 15分間無操作で通知が届きます<br>
+        ✓ × ボタンはトレイに格納（終了しません）<br>
+        ✓ トレイアイコンから出退勤できます
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app-body -->
+</div><!-- /mainScreen -->
+
+<script>
+// ══════════════════════════════════════════════
+// 設定（設定タブから変更可能）
+let GAS_URL = localStorage.getItem('gasUrl') || ''
+let GOOGLE_CLIENT_ID     = localStorage.getItem('googleClientId') || ''
+let GOOGLE_CLIENT_SECRET = localStorage.getItem('googleClientSecret') || ''
+// ══════════════════════════════════════════════
+
+const CATS=['資料作成','MTG打合せ','メール連絡','開発実装','調査リサーチ','営業活動','事務処理','その他']
+const CLBL={'資料作成':'資料作成','MTG打合せ':'MTG・打合せ','メール連絡':'メール・連絡','開発実装':'開発・実装','調査リサーチ':'調査・リサーチ','営業活動':'営業活動','事務処理':'事務処理','その他':'その他'}
+const IDLE_WARN_SEC = 15 * 60  // 15分
+
+let user = null, logs = [], attRec = null
+let attState = 'off'
+let workTimer = null, breakTimer = null
+let breakStartTs = 0, idleWarned = false
+let aiTimer = null, saveLogTimer = null, curProj = ''
+
+const p2 = n => String(n).padStart(2,'0')
+const nowTs = () => Math.floor(Date.now()/1000)
+const todayKey = () => { const d=new Date(); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()) }
+const monthKey = (d=new Date()) => d.getFullYear()+'-'+p2(d.getMonth()+1)
+const fmtTime = ts => { const d=new Date(Number(ts)*1000); return p2(d.getHours())+':'+p2(d.getMinutes()) }
+const fmtSec = s => p2(Math.floor(s/3600))+':'+p2(Math.floor((s%3600)/60))+':'+p2(s%60)
+const fmtHM = s => { const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?h+'時間'+m+'分':m+'分' }
+const fmtH = s => (s/3600).toFixed(1)
+const fmtMin = s => Math.round(s/60)+'分'
+
+// ─── API ──────────────────────────────────────────────────
+async function api(action, data={}) {
+  if (!GAS_URL) throw new Error('設定タブでGAS URLを設定してください')
+  let res, text
+  try {
+    res = await fetch(GAS_URL, { method:'POST', redirect:'follow', body: JSON.stringify({action,...data}) })
+    text = await res.text()
+  } catch(e) {
+    throw new Error('通信エラー: ' + e.message)
+  }
+  let json
+  try { json = JSON.parse(text) } catch(e) {
+    throw new Error('GASの応答が不正です(HTTP:' + res.status + ') URLを確認してください')
+  }
+  if (!json.ok) throw new Error(json.error || 'API error')
+  return json.data
+}
+function showErr(msg) { const el=document.getElementById('apiErr'); el.textContent='⚠ '+msg; el.style.display='block'; setTimeout(()=>el.style.display='none',6000) }
+
+// ─── ELECTRON IPC ─────────────────────────────────────────
+const EA = window.electronAPI
+
+// OS レベルのアイドル検知（1分ごとに届く）
+EA.onIdleUpdate(idleSec => {
+  if (attState !== 'working') return
+  if (idleSec >= IDLE_WARN_SEC && !idleWarned) {
+    idleWarned = true
+    document.getElementById('idleBanner').classList.add('show')
+  }
+  // 操作再開でバナーをリセット
+  if (idleSec < 60 && idleWarned) {
+    idleWarned = false
+    document.getElementById('idleBanner').classList.remove('show')
+  }
+})
+
+// 15分アイドル確定（main.jsから1回だけ届く）
+// 仕様（確定）：無操作は「記録」せず通知のみ。自動休憩化しない。
+// ※以前ここで api('logIdleEvent') を呼んでいたが、該当アクションはGAS側に無く
+//   仕様上も記録しないため削除。バナー表示は onIdleUpdate 側で行う。
+EA.onIdleAlert(({ idleSec, ts }) => {
+  if (attState !== 'working') return
+  document.getElementById('idleBanner').classList.add('show')
+})
+
+// トレイボタンからのアクション
+EA.onTrayAction(action => {
+  if (action === 'clock-in'  && (attState==='off'||attState==='done')) doClockin()
+  if (action === 'clock-out' && (attState==='working'||attState==='break')) doClockin_out()
+  if (action === 'break'     && attState==='working') goBreak()
+  if (action === 'end-break' && attState==='break') endBreak()
+})
+
+// スリープ復帰 → ウィンドウを前面に
+EA.onSystemResume(() => {
+  if (attState === 'working' || attState === 'break') {
+    EA.showNotification('ワークログ', 'PCが再開されました。出退勤状態を確認してください。')
+  }
+})
+
+// ─── LOGIN ────────────────────────────────────────────────
+document.getElementById('nameInput').addEventListener('keydown', e => { if(e.key==='Enter') loginWithName() })
+
+function loginWithName() {
+  const n = document.getElementById('nameInput').value.trim()
+  if (!n) { document.getElementById('nameInput').focus(); return }
+  loginUser({ id:'n_'+n.replace(/\s+/g,'_'), name:n, email:'', picture:'' })
+}
+
+// Googleアカウントでログイン（標準ブラウザで認証 → 本人のメール・名前を取得）
+async function googleSignIn() {
+  if (!GOOGLE_CLIENT_ID) {
+    document.getElementById('loginScreen').classList.remove('show')
+    document.getElementById('mainScreen').classList.add('show')
+    switchTab('settings')
+    showErr('先に設定タブで Google Client ID / Secret を入力してください')
+    return
+  }
+  try {
+    const info = await EA.googleLogin(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
+    if (!info || !info.email) throw new Error('メールアドレスを取得できませんでした')
+    // メールを一意IDにする（本人特定が確実）
+    loginUser({ id:'g_'+info.email, name: info.name || info.email, email: info.email, picture: info.picture || '' })
+  } catch(e) {
+    showErr('Googleログイン失敗: ' + e.message)
+  }
+}
+
+async function loginUser(u) {
+  user = u
+  document.getElementById('loginScreen').classList.remove('show')
+  document.getElementById('mainScreen').classList.add('show')
+  document.getElementById('setUserName').textContent = u.name
+
+  // GAS に登録 + 今日の勤怠を取得
+  if (GAS_URL) {
+    try {
+      await api('saveStaff', {id:u.id, name:u.name, email:u.email, picture:u.picture})
+      logs = (await api('getStaffLogs', {staffId:u.id, ym:monthKey()}) || [])
+        .map(l => ({...l, start:Number(l.startTs), duration:Number(l.durationSec), itemCount:Number(l.itemCount)||0}))
+      attRec = await api('getTodayAttendance', {staffId:u.id, date:todayKey()})
+    } catch(e) { showErr(e.message) }
+  }
+
+  // 自動起動状態をトグルに反映
+  EA.getAutoStart().then(v => {
+    const t = document.getElementById('autoStartToggle')
+    if (v) t.classList.add('on')
+    else t.classList.remove('on')
+  })
+
+  restoreAttState()
+  updateAttDate()
+  populateSheetMonths()
+  buildTaskButtons()   // 起動時に担当別の作業ボタンを生成（保存済みロールがあれば表示される）
+  EA.setStatus('off', u.name)
+}
+
+function doLogout() {
+  if (!confirm('ログアウトしますか？')) return
+  if (attState === 'working' || attState === 'break') {
+    if (!confirm('出勤中です。ログアウトしますか？\n（退勤処理は行われません）')) return
+  }
+  stopTimers()
+  user = null; logs = []; attRec = null
+  document.getElementById('mainScreen').classList.remove('show')
+  document.getElementById('loginScreen').classList.add('show')
+  document.getElementById('nameInput').value = ''
+  EA.setStatus('off', '')
+}
+
+// ─── 出退勤 ───────────────────────────────────────────────
+function restoreAttState() {
+  if (!attRec) { setAttState('off'); return }
+  if (attRec.status === 'done') { setAttState('done'); return }
+  if (attRec.status === 'break') {
+    const breaks = Array.isArray(attRec.breaks) ? attRec.breaks
+      : JSON.parse(attRec.breaks || '[]')
+    const last = breaks[breaks.length-1]
+    breakStartTs = (last && last.endTs===0) ? Number(last.startTs) : nowTs()
+    setAttState('break'); return
+  }
+  if (attRec.status === 'working') { setAttState('working'); return }
+  setAttState('off')
+}
+
+function setAttState(state) {
+  attState = state
+  ;['Off','Working','Break','Done'].forEach(s =>
+    document.getElementById('state'+s).style.display = 'none'
+  )
+  const stateId = state.charAt(0).toUpperCase() + state.slice(1)
+  document.getElementById('state'+stateId).style.display = ''
+  const card = document.getElementById('attCard')
+  card.className = 'att-card' + (state!=='off' ? ' '+state : '')
+  const memoVisible = (state==='working'||state==='break')
+  document.getElementById('memoSection').style.display = memoVisible ? '' : 'none'
+  if (memoVisible) buildTaskButtons()   // 作業メモ表示時に作業ボタンを確実に生成する
+  stopTimers()
+  if (state === 'working') { updateWorkingUI(); workTimer = setInterval(updateWorkingUI, 1000) }
+  if (state === 'break')   { updateBreakUI();   breakTimer = setInterval(updateBreakUI, 1000) }
+  if (state === 'done')    renderDoneCard()
+  // タイトルバーとトレイを更新
+  const statusTxt = {off:'未出勤',working:'出勤中',break:'休憩中',done:'退勤済み'}[state]||''
+  document.getElementById('tbStatus').textContent = statusTxt
+  EA.setStatus(state, user?.name||'')
+  // アイドルバナーをリセット
+  if (state !== 'working') { idleWarned = false; document.getElementById('idleBanner').classList.remove('show') }
+}
+
+function stopTimers() { clearInterval(workTimer); clearInterval(breakTimer) }
+
+function updateWorkingUI() {
+  if (!attRec) return
+  const elapsed = nowTs() - Number(attRec.clockInTs) - Number(attRec.breakSec||0)
+  document.getElementById('mainTimer').textContent = fmtSec(Math.max(0,elapsed))
+  document.getElementById('attSince').textContent = '出勤 '+fmtTime(Number(attRec.clockInTs))+'〜'
+}
+function updateBreakUI() {
+  const elapsed = nowTs() - breakStartTs
+  document.getElementById('breakTimer').textContent = fmtSec(Math.max(0,elapsed))
+  document.getElementById('breakSince').textContent = '休憩開始 '+fmtTime(breakStartTs)
+}
+function renderDoneCard() {
+  if (!attRec) return
+  const ci=Number(attRec.clockInTs), co=Number(attRec.clockOutTs)
+  const brk=Number(attRec.breakSec||0), work=Number(attRec.workSec||0)
+  document.getElementById('doneIn').textContent = fmtTime(ci)
+  document.getElementById('doneOut').textContent = co>0 ? fmtTime(co) : '—'
+  document.getElementById('doneBreak').textContent = brk>0 ? fmtMin(brk) : 'なし'
+  document.getElementById('doneTot').textContent = co>0 ? fmtHM(co-ci) : '—'
+  document.getElementById('doneWork').textContent = fmtHM(work)
+  document.getElementById('doneWorkSub').textContent = fmtH(work)+'h × 時給 = 本日分'
+}
+function updateAttDate() {
+  const d=new Date(); const days=['日','月','火','水','木','金','土']
+  document.getElementById('attDate').textContent = d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+days[d.getDay()]+'）'
+}
+
+async function doClockin() {
+  if (!GAS_URL) { switchTab('settings'); showErr('先にGAS URLを設定してください'); return }
+  try {
+    const res = await api('clockIn', {staffId:user.id, staffName:user.name, date:todayKey(), ts:nowTs()})
+    if (res.alreadyClockedIn && res.record) {
+      // 既に本日出勤済み（GASに記録あり）→ そのレコードで状態を復元する
+      attRec = res.record
+      attRec.breaks = Array.isArray(attRec.breaks) ? attRec.breaks : JSON.parse(attRec.breaks || '[]')
+      restoreAttState()
+    } else {
+      // 新規出勤：サーバーが返した clockInTs を使う（端末時計のズレを避ける）
+      attRec = {id:res.id, staffId:user.id, staffName:user.name, date:todayKey(), clockInTs:res.clockInTs||nowTs(), clockOutTs:0, breakSec:0, workSec:0, breaks:[], status:'working'}
+      setAttState('working')
+    }
+  } catch(e) { showErr(e.message) }
+}
+
+async function doClockin_out() {
+  if (!attRec) return
+  // 「今日の作業」を必須化：1件も記録がないと退勤させない
+  if (todayLogs().length === 0) {
+    if (selectedTasks.length > 0) {
+      showErr('選択中の作業を「記録する」で確定してから退勤してください')
+    } else {
+      showErr('退勤前に「今日の作業」を1件以上記録してください（必須）')
+    }
+    const memo = document.getElementById('memoSection')
+    if (memo && memo.scrollIntoView) memo.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
+  }
+  if (!confirm('退勤しますか？')) return
+  if (attState === 'break') { if (!(await safeEndBreak())) return }
+  try {
+    // 退勤前に当日の作業記録を確実にスプレッドシートへ保存
+    clearTimeout(saveLogTimer)
+    if (user && GAS_URL) {
+      try { await api('saveDayLogs', {staffId:user.id, staffName:user.name, date:todayKey(), logs: todayLogs()}) } catch(_) {}
+    }
+    const res = await api('clockOut', {id:attRec.id, ts:nowTs()})
+    attRec.clockOutTs = nowTs(); attRec.workSec = res.workSec||0; attRec.status = 'done'
+    setAttState('done')
+  } catch(e) { showErr(e.message) }
+}
+
+async function goBreak() {
+  if (!attRec || attState !== 'working') return
+  try {
+    breakStartTs = nowTs()
+    await api('startBreak', {id:attRec.id, ts:breakStartTs})
+    attRec.status = 'break'
+    if (!Array.isArray(attRec.breaks)) attRec.breaks = []
+    attRec.breaks.push({startTs:breakStartTs, endTs:0})
+    setAttState('break')
+  } catch(e) { showErr(e.message) }
+}
+
+async function endBreak() {
+  if (!attRec || attState !== 'break') return
+  if (await safeEndBreak()) setAttState('working')
+}
+
+async function safeEndBreak() {
+  try {
+    const endTs = nowTs()
+    const res = await api('endBreak', {id:attRec.id, ts:endTs})
+    // GAS は totalBreakSec（累計）と addedSec（今回分）を返す。breakEndedSec は存在しない。
+    if (typeof res.totalBreakSec === 'number') attRec.breakSec = res.totalBreakSec
+    else attRec.breakSec = (Number(attRec.breakSec)||0) + (Number(res.addedSec)||0)
+    attRec.status = 'working'
+    if (Array.isArray(attRec.breaks) && attRec.breaks.length) {
+      attRec.breaks[attRec.breaks.length-1].endTs = endTs
+    }
+    return true
+  } catch(e) { showErr(e.message); return false }
+}
+
+function dismissIdle() { idleWarned=false; document.getElementById('idleBanner').classList.remove('show') }
+
+// ─── 作業タスクマスタ ─────────────────────────────────────
+// 作業項目マスタ（スプレッドシートの tasks シートから取得）
+// 管理者が tasks シートを直接編集すると、ここに反映される
+let TASK_MASTER = {}
+let taskMasterLoaded = false
+
+async function loadTaskMaster() {
+  if (!GAS_URL) return
+  try {
+    TASK_MASTER = await api('getTaskMaster', {}) || {}
+    taskMasterLoaded = true
+  } catch (e) {
+    taskMasterLoaded = false
+  }
+}
+
+// 選択中タスク {id, name, min, count}
+let selectedTasks = []
+
+// ─── 作業メモ ──────────────────────────────────────────────
+function getRole() { return localStorage.getItem('userRole') || '' }
+function saveRole() {
+  const v = document.getElementById('roleSelect').value
+  localStorage.setItem('userRole', v)
+  buildTaskButtons()
+}
+
+async function buildTaskButtons() {
+  const role = getRole()
+  const area = document.getElementById('taskButtonArea')
+  const roleLabel = document.getElementById('roleLabel')
+  if (!area) return
+
+  if (!role) {
+    area.innerHTML = '<div style="font-size:11px;color:var(--t3);padding:4px 0">設定タブで担当を選択してください</div>'
+    if (roleLabel) roleLabel.textContent = '担当未設定'
+    return
+  }
+
+  // 未取得ならGASから読み込む
+  if (!taskMasterLoaded) {
+    area.innerHTML = '<div style="font-size:11px;color:var(--t3);padding:4px 0">読み込み中…</div>'
+    await loadTaskMaster()
+  }
+
+  if (roleLabel) roleLabel.textContent = role
+
+  const cats = TASK_MASTER[role]
+  if (!cats || Object.keys(cats).length === 0) {
+    area.innerHTML = '<div style="font-size:11px;color:var(--t3);padding:4px 0">この担当の作業項目はまだ登録されていません<br>スプレッドシートの tasks シートで追加してください</div>'
+    return
+  }
+
+  area.innerHTML = Object.entries(cats).map(([catName, tasks]) => `
+    <div class="cat-block">
+      <div class="cat-label">${catName}</div>
+      <div class="task-btns">
+        ${tasks.map(t => `<button class="task-btn" onclick="selectTask('${t.id}','${t.name.replace(/'/g,"\\'")}',${t.min})">
+          <span class="tb-name">${t.name}</span>
+          <span class="tb-min">目安 ${t.min}分</span>
+        </button>`).join('')}
+      </div>
+    </div>
+  `).join('')
+}
+
+function selectTask(id, name, min) {
+  const existing = selectedTasks.find(t => t.id === id)
+  if (existing) { existing.count++; renderSelectedTasks(); return }
+  selectedTasks.push({id, name, min, count: 1})
+  renderSelectedTasks()
+}
+
+function changeCount(id, delta) {
+  const t = selectedTasks.find(t => t.id === id)
+  if (!t) return
+  t.count = Math.max(0, t.count + delta)
+  if (t.count === 0) selectedTasks = selectedTasks.filter(x => x.id !== id)
+  renderSelectedTasks()
+}
+
+function renderSelectedTasks() {
+  const area = document.getElementById('selectedTasks')
+  const saveBtn = document.getElementById('memoSaveBtn')
+  if (!area) return
+  if (selectedTasks.length === 0) {
+    area.style.display = 'none'
+    if (saveBtn) saveBtn.style.display = 'none'
+    return
+  }
+  area.style.display = 'flex'
+  if (saveBtn) saveBtn.style.display = 'block'
+  area.innerHTML = selectedTasks.map(t => {
+    const totalMin = t.min * t.count
+    return `<div class="sel-task">
+      <span class="st-name">${t.name}</span>
+      <div class="st-counter">
+        <button class="st-minus" onclick="changeCount('${t.id}',-1)">−</button>
+        <span class="st-count">${t.count}</span>
+        <button class="st-plus" onclick="changeCount('${t.id}',1)">＋</button>
+      </div>
+      <span class="st-time">${totalMin}分</span>
+      <button class="st-del" onclick="removeTask('${t.id}')">×</button>
+    </div>`
+  }).join('')
+}
+
+function removeTask(id) {
+  selectedTasks = selectedTasks.filter(t => t.id !== id)
+  renderSelectedTasks()
+}
+
+function saveMemo() {
+  if (selectedTasks.length === 0) return
+  const now = nowTs()
+  selectedTasks.forEach(t => {
+    const durationSec = t.min * t.count * 60
+    const entry = {
+      id: Date.now() + Math.random(),
+      cat: getRole(),
+      catLabel: t.name,
+      name: t.name,
+      proj: '',
+      start: now - durationSec,
+      startTs: now - durationSec,
+      duration: durationSec,
+      durationSec: durationSec,
+      itemCount: t.count,
+      date: todayKey(),
+    }
+    logs.unshift(entry)
+  })
+  selectedTasks = []
+  renderSelectedTasks()
+  renderLogList()
+  clearTimeout(saveLogTimer)
+  saveLogTimer = setTimeout(() => {
+    if (user && GAS_URL) api('saveDayLogs', {staffId:user.id, staffName:user.name, date:todayKey(), logs:logs.filter(l=>l.date===todayKey())}).catch(()=>{})
+  }, 2000)
+}
+
+const todayLogs = () => logs.filter(l=>l.date===todayKey())
+function renderLogList() {
+  const list = document.getElementById('logList')
+  const tl = todayLogs()
+  document.getElementById('emptyLog').style.display = tl.length?'none':''
+  list.querySelectorAll('.li').forEach(e=>e.remove())
+  tl.forEach(l=>{
+    const div=document.createElement('div'); div.className='li'
+    const cntStr = l.itemCount>0 ? `<span class="lc">${l.itemCount}件 / ${l.itemCount * (l.durationSec/l.itemCount/60)|0}分</span>` : ''
+    div.innerHTML=`<span class="lt">${l.name}</span><span class="ln">${l.catLabel||l.name}</span>${cntStr}<button class="ld" onclick="delLog(${l.id})">×</button>`
+    list.appendChild(div)
+  })
+}
+function delLog(id) { logs=logs.filter(l=>l.id!==id); renderLogList() }
+
+// ─── 実績 ─────────────────────────────────────────────────
+async function renderGraph() {
+  let monthAtt=[]
+  if(GAS_URL&&user) try { monthAtt=await api('getAttendance',{staffId:user.id,ym:monthKey()})||[] } catch(e){}
+  const DAYS=['月','火','水','木','金','土','日']
+  const now=new Date(); const tdow=now.getDay()===0?6:now.getDay()-1
+  const bars=document.getElementById('weekBars'); bars.innerHTML=''
+  const entries=[]
+  for(let i=6;i>=0;i--){
+    const d=new Date(now); d.setDate(now.getDate()-i)
+    const key=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())
+    const att=monthAtt.find(a=>String(a.date)===key)
+    entries.push({day:DAYS[(tdow-(6-i)+7)%7], sec:att?Number(att.workSec||0):0, isToday:i===0})
+  }
+  const mx=Math.max(...entries.map(e=>e.sec),1)
+  entries.forEach(e=>{
+    const pct=Math.round((e.sec/mx)*100)
+    bars.innerHTML+=`<div class="wb-col"><span class="wb-v">${e.sec>0?fmtH(e.sec):''}</span><div class="wb-wrap"><div class="wb ${e.isToday?'today':e.sec>0?'has':''}" style="height:${Math.max(pct,e.sec>0?5:2)}%"></div></div><span class="wb-d ${e.isToday?'today':''}">${e.day}</span></div>`
+  })
+  const totalWork=monthAtt.reduce((a,r)=>a+Number(r.workSec||0),0)
+  const pct=Math.min(Math.round((totalWork/(160*3600))*100),100)
+  document.getElementById('monthProg').innerHTML=`<div class="mp-row"><span class="mp-lbl">今月の累計実働<br><span style="font-size:9px;color:var(--t3)">目安 160h</span></span><div class="mp-bw"><div class="mp-b" style="width:${pct}%"></div></div><span class="mp-v">${fmtH(totalWork)}h</span></div>`
+  const hist=document.getElementById('attHist'); hist.innerHTML=''
+  if(!monthAtt.length){hist.innerHTML='<div class="empty-li">出勤記録がありません</div>';return}
+  const sorted=[...monthAtt].sort((a,b)=>String(b.date).localeCompare(String(a.date)))
+  sorted.forEach(r=>{
+    const d=new Date(r.date); const days=['日','月','火','水','木','金','土']
+    const ci=Number(r.clockInTs),co=Number(r.clockOutTs),work=Number(r.workSec||0)
+    hist.innerHTML+=`<div class="ah-row"><span class="ah-date">${(d.getMonth()+1)+'/'+d.getDate()+'('+days[d.getDay()]+')'}</span><span class="ah-time">${fmtTime(ci)}</span><span class="ah-sep">〜</span><span class="ah-time">${co>0?fmtTime(co):'—'}</span><span class="ah-brk">${Number(r.breakSec||0)>0?fmtMin(Number(r.breakSec)):''}</span><span class="ah-work">${work>0?fmtH(work)+'h':'—'}</span></div>`
+  })
+}
+
+// ─── タイムシート ──────────────────────────────────────────
+function populateSheetMonths() {
+  const sel=document.getElementById('sheetSel'); sel.innerHTML=''; const now=new Date()
+  for(let i=0;i<6;i++){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const ym=d.getFullYear()+'-'+p2(d.getMonth()+1);const opt=document.createElement('option');opt.value=ym;opt.textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月';sel.appendChild(opt)}
+  renderSheet()
+}
+async function renderSheet() {
+  if(!user||!GAS_URL){document.getElementById('sheetContent').innerHTML='<div class="empty-li" style="padding:16px">GAS URLを設定してください</div>';return}
+  const ym=document.getElementById('sheetSel').value
+  let monthAtt=[]; try{monthAtt=await api('getAttendance',{staffId:user.id,ym})||[]}catch(e){}
+  const totalWork=monthAtt.reduce((a,r)=>a+Number(r.workSec||0),0)
+  const workDays=monthAtt.filter(r=>Number(r.workSec||0)>0).length
+  let tsStatus='draft'; let stm=null
+  try{const tss=await api('getTimesheets',{ym});const ts=tss.find(t=>String(t.staffId)===String(user.id));if(ts)tsStatus=ts.status||'draft'}catch(e){}
+  try{stm=await api('getStatement',{staffId:user.id,ym})}catch(e){}
+  const parts=ym.split('-'); const yr=parseInt(parts[0]); const mo=parseInt(parts[1])
+  const slbl={draft:'作成中',submitted:'提出済み',approved:'承認済み'}
+  const scls={draft:'draft',submitted:'submitted',approved:'approved'}
+  const sorted=[...monthAtt].sort((a,b)=>String(a.date).localeCompare(String(b.date)))
+  const dayRows=sorted.filter(r=>Number(r.workSec||0)>0).map(r=>{
+    const d=new Date(r.date); const ci=Number(r.clockInTs),co=Number(r.clockOutTs)
+    return `<tr><td>${(d.getMonth()+1)+'/'+d.getDate()}</td><td>${fmtTime(ci)}</td><td>${co>0?fmtTime(co):'—'}</td><td class="r">${Number(r.breakSec||0)>0?fmtMin(Number(r.breakSec)):''}</td><td class="r" style="color:var(--ok)">${fmtH(Number(r.workSec||0))}h</td></tr>`
+  }).join('')
+  let html=`<div class="ts-card">
+<div class="ts-hd"><span class="ts-ttl">${yr}年${mo}月分</span><span class="spill ${scls[tsStatus]}">${slbl[tsStatus]}</span></div>
+<div class="ts-nums"><div class="tsn"><div class="tsn-v">${fmtH(totalWork)}h</div><div class="tsn-l">実働時間</div></div><div class="tsn"><div class="tsn-v">${workDays}</div><div class="tsn-l">出勤日数</div></div></div>
+<table class="ts-tbl"><thead><tr><th>日付</th><th>出勤</th><th>退勤</th><th style="text-align:right">休憩</th><th style="text-align:right">実働</th></tr></thead>
+<tbody>${dayRows||'<tr><td colspan="5" style="color:var(--t3);padding:8px 0;font-size:11px">出勤記録がありません</td></tr>'}</tbody></table>
+${tsStatus==='draft'?`<button class="sub-btn" onclick="submitSheet('${ym}')" ${!totalWork?'disabled':''}>タイムシートを提出する</button><div style="font-size:10px;color:var(--t3);text-align:center;margin-top:5px">提出後は管理者が確認・承認します</div>`:''}
+${tsStatus==='submitted'?'<p style="font-size:11px;color:var(--warn);text-align:center;padding:3px">管理者の承認待ちです</p>':''}
+${tsStatus==='approved'?'<p style="font-size:11px;color:var(--ok);text-align:center;padding:3px">✓ 承認されました</p>':''}
+</div>`
+  if(stm){
+    const payDate=new Date(yr+(mo===12?1:0),(mo===12?0:mo),5)
+    html+=`<div class="stmt-box"><div class="stmt-box-hd"><span class="stmt-box-ttl">支払い明細（確定）</span><span class="stmt-box-pd">支払予定：${payDate.getFullYear()}年${payDate.getMonth()+1}月5日</span></div>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:4px"><span>実働時間</span><span style="font-family:var(--mono)">${fmtH(Number(stm.workSec||stm.totalSec||0))}h</span></div>
+<div class="stmt-tot"><span class="stmt-tot-l">お支払い金額</span><span class="stmt-tot-v">¥${Number(stm.amount).toLocaleString()}</span></div></div>`
+  }
+  document.getElementById('sheetContent').innerHTML=html
+}
+
+async function submitSheet(ym) {
+  if(!user||!confirm('タイムシートを提出しますか？'))return
+  const monthAtt=await api('getAttendance',{staffId:user.id,ym})||[]
+  const totalWork=monthAtt.reduce((a,r)=>a+Number(r.workSec||0),0)
+  try{await api('submitTimesheet',{staffId:user.id,ym,totalHours:parseFloat(fmtH(totalWork)),workSec:totalWork,catBreakdown:[],submittedAt:nowTs()});renderSheet()}catch(e){showErr(e.message)}
+}
+
+// ─── 設定 ─────────────────────────────────────────────────
+function saveSettings() {
+  const url = document.getElementById('setGasUrl').value.trim()
+  localStorage.setItem('gasUrl', url); GAS_URL = url
+  const cid = document.getElementById('setClientId').value.trim()
+  const csec = document.getElementById('setClientSecret').value.trim()
+  localStorage.setItem('googleClientId', cid);     GOOGLE_CLIENT_ID = cid
+  localStorage.setItem('googleClientSecret', csec); GOOGLE_CLIENT_SECRET = csec
+  EA.showNotification('設定を保存しました', '接続設定を更新しました')
+}
+async function toggleAutoStart() {
+  const t = document.getElementById('autoStartToggle')
+  const current = await EA.getAutoStart()
+  EA.setAutoStart(!current)
+  t.classList.toggle('on', !current)
+}
+function switchToSettings() { switchTab('settings') }
+
+// 設定タブに保存済みの接続情報を表示
+document.getElementById('setGasUrl').value = GAS_URL
+document.getElementById('setClientId').value = GOOGLE_CLIENT_ID
+document.getElementById('setClientSecret').value = GOOGLE_CLIENT_SECRET
+// 担当設定を復元
+const savedRole = localStorage.getItem('userRole') || ''
+const roleSelectEl = document.getElementById('roleSelect')
+if (roleSelectEl && savedRole) roleSelectEl.value = savedRole
+
+// ─── タブ ─────────────────────────────────────────────────
+function switchTab(t) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'))
+  document.querySelectorAll('.tab-view').forEach(v=>v.classList.remove('active'))
+  document.getElementById('tab-'+t).classList.add('active')
+  document.getElementById('view-'+t).classList.add('active')
+  if(t==='graph') renderGraph()
+  if(t==='sheet') renderSheet()
+}
+
+// 日付更新
+setInterval(updateAttDate, 60000)
+
+// GAS URL が未設定の場合は設定タブを促す
+if (!GAS_URL) {
+  setTimeout(()=>{
+    document.getElementById('loginScreen').classList.remove('show')
+    document.getElementById('mainScreen').classList.add('show')
+    switchTab('settings')
+    showErr('最初にGAS URLを設定してください')
+    document.getElementById('setGasUrl').focus()
+  }, 500)
+}
+</script>
+</body>
+</html>
