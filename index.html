@@ -787,12 +787,15 @@ async function loadClients(){
     clientsCache = (j && j.data) || []
   } catch(e) { clientsCache = [] }
   clientsLoading = false
+  // 読み込み完了後、検索中なら一度だけ再描画（※再帰ループにしないこと）
+  const el = document.getElementById('clientSearch')
+  if (el && el.value.trim()) onClientSearch()
 }
 function onClientSearch(){
   const q = (document.getElementById('clientSearch').value || '').trim().toLowerCase()
   const box = document.getElementById('clientResults')
   if (!q) { box.style.display='none'; box.innerHTML=''; return }
-  if (!clientsCache) { loadClients().then(onClientSearch); box.innerHTML='<div style="padding:8px;font-size:12px;color:var(--t3)">読み込み中…</div>'; box.style.display='block'; return }
+  if (!clientsCache) { loadClients(); box.innerHTML='<div style="padding:8px;font-size:12px;color:var(--t3)">読み込み中…</div>'; box.style.display='block'; return }
   clientHits = clientsCache.filter(c =>
     (c.no||'').toLowerCase().includes(q) ||
     (c.company||'').toLowerCase().includes(q) ||
