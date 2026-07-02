@@ -774,13 +774,18 @@ async function loadTaskMaster() {
 }
 
 // ─── 顧客検索（別スプレッドシートの企業情報マスタ）────────────
-let clientsCache = null, clientsLoading = false, selectedClient = null, clientHits = []
+let clientsCache = null, clientsLoading = false, selectedClient = null, clientHits = [], CLIENTS_URL = ''
 function escClient(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) }
 function clientLabel(c){ return c.no + ' ' + c.company + (c.store ? ' / ' + c.store : '') }
 async function loadClients(){
-  if (clientsCache || clientsLoading || !GAS_URL) return
+  if (clientsCache || clientsLoading) return
+  if (!CLIENTS_URL) { clientsCache = []; return }
   clientsLoading = true
-  try { clientsCache = await api('getClients') || [] } catch(e) { clientsCache = [] }
+  try {
+    const res = await fetch(CLIENTS_URL, { method:'GET', redirect:'follow' })
+    const j = JSON.parse(await res.text())
+    clientsCache = (j && j.data) || []
+  } catch(e) { clientsCache = [] }
   clientsLoading = false
 }
 function onClientSearch(){
@@ -1106,6 +1111,7 @@ async function bootConfig() {
       if (cfg) {
         if (cfg.gasUrl)         { GAS_URL = cfg.gasUrl; localStorage.setItem('gasUrl', cfg.gasUrl) }
         if (cfg.googleClientId) { GOOGLE_CLIENT_ID = cfg.googleClientId; localStorage.setItem('googleClientId', cfg.googleClientId) }
+        if (cfg.clientsUrl)     { CLIENTS_URL = cfg.clientsUrl }
         const g  = document.getElementById('setGasUrl');   if (g)  g.value  = GAS_URL
         const ci = document.getElementById('setClientId'); if (ci) ci.value = GOOGLE_CLIENT_ID
       }
