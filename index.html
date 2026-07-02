@@ -354,6 +354,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Helvetica
       <div id="taskButtonArea"></div>
       <div class="selected-tasks" id="selectedTasks" style="display:none"></div>
       <button class="memo-save-btn" id="memoSaveBtn" onclick="saveMemo()" style="display:none">記録する</button>
+      <div class="free-memo" style="display:flex;gap:8px;margin:6px 0 4px">
+        <input type="text" id="freeMemoInput" class="name-inp" style="margin-bottom:0;flex:1" placeholder="自由記述で作業を追加（例：資料作成、電話対応 など）" maxlength="200" onkeydown="if(event.key==='Enter')addFreeMemo()">
+        <button class="memo-save-btn" style="width:auto;white-space:nowrap;margin:0" onclick="addFreeMemo()">追加</button>
+      </div>
       <div class="log-list" id="logList">
         <div class="empty-li" id="emptyLog">まだ記録がありません</div>
       </div>
@@ -882,6 +886,31 @@ function saveMemo() {
   })
   selectedTasks = []
   renderSelectedTasks()
+  renderLogList()
+  clearTimeout(saveLogTimer)
+  saveLogTimer = setTimeout(() => {
+    if (user && GAS_URL) api('saveDayLogs', {staffId:user.id, staffName:user.name, date:todayKey(), logs:logs.filter(l=>l.date===todayKey())}).catch(()=>{})
+  }, 2000)
+}
+
+// 自由記述で1件追加（ボタンに無い作業もこれで記録できる）
+function addFreeMemo() {
+  const el = document.getElementById('freeMemoInput')
+  const txt = (el.value || '').trim()
+  if (!txt) { el.focus(); return }
+  const now = nowTs()
+  logs.unshift({
+    id: Date.now() + Math.random(),
+    cat: getRole(),
+    catLabel: '自由記述',
+    name: txt,
+    proj: '',
+    start: now, startTs: now,
+    duration: 0, durationSec: 0,
+    itemCount: 0,
+    date: todayKey(),
+  })
+  el.value = ''
   renderLogList()
   clearTimeout(saveLogTimer)
   saveLogTimer = setTimeout(() => {
