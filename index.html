@@ -356,16 +356,17 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Helvetica
         <div id="clientResults" style="display:none;max-height:170px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg2)"></div>
         <div id="clientSelected" style="display:none;font-size:12px;color:var(--text);background:var(--pb);border:1px solid var(--pbd);border-radius:8px;padding:6px 10px;margin-top:4px"></div>
       </div>
+      <div id="runningCard" style="display:none;background:var(--pb);border:1px solid var(--pbd);border-radius:10px;padding:10px;margin:4px 0 8px"></div>
+      <div style="font-size:11px;color:var(--t3);margin:2px 0 4px">作業を選ぶと計測開始。別の作業を押すと前の作業は自動で記録されます。</div>
       <div id="taskButtonArea"></div>
-      <div class="selected-tasks" id="selectedTasks" style="display:none"></div>
-      <button class="memo-save-btn" id="memoSaveBtn" onclick="saveMemo()" style="display:none">記録する</button>
       <div class="free-memo" style="display:flex;gap:8px;margin:6px 0 4px">
-        <input type="text" id="freeMemoInput" class="name-inp" style="margin-bottom:0;flex:1" placeholder="自由記述で作業を追加（例：資料作成、電話対応 など）" maxlength="200" onkeydown="if(event.key==='Enter')addFreeMemo()">
-        <button class="memo-save-btn" style="width:auto;white-space:nowrap;margin:0" onclick="addFreeMemo()">追加</button>
+        <input type="text" id="freeMemoInput" class="name-inp" style="margin-bottom:0;flex:1" placeholder="その他の作業（例：資料作成）を入力して開始" maxlength="200" onkeydown="if(event.key==='Enter')startFreeTask()">
+        <button class="memo-save-btn" style="width:auto;white-space:nowrap;margin:0" onclick="startFreeTask()">▶ 開始</button>
       </div>
       <div class="log-list" id="logList">
         <div class="empty-li" id="emptyLog">まだ記録がありません</div>
       </div>
+      <div id="daySummary" style="display:none;margin-top:6px;border-top:1px solid var(--border);padding-top:6px"></div>
     </div>
   </div>
 
@@ -698,13 +699,11 @@ async function doClockin() {
 
 async function doClockin_out() {
   if (!attRec) return
+  // 計測中の作業があれば退勤前に自動で確定（記録）する
+  if (runningTask) stopTask(true)
   // 「今日の作業」を必須化：1件も記録がないと退勤させない
   if (todayLogs().length === 0) {
-    if (selectedTasks.length > 0) {
-      showErr('選択中の作業を「記録する」で確定してから退勤してください')
-    } else {
-      showErr('退勤前に「今日の作業」を1件以上記録してください（必須）')
-    }
+    showErr('退勤前に「今日の作業」を1件以上記録してください（作業を選んで開始→停止で記録されます）')
     const memo = document.getElementById('memoSection')
     if (memo && memo.scrollIntoView) memo.scrollIntoView({ behavior: 'smooth', block: 'center' })
     return
@@ -725,6 +724,7 @@ async function doClockin_out() {
 
 async function goBreak() {
   if (!attRec || attState !== 'working') return
+  if (runningTask) stopTask(true)   // 休憩前に計測中の作業を確定（休憩を作業時間に含めない）
   try {
     breakStartTs = nowTs()
     await api('startBreak', {id:attRec.id, ts:breakStartTs})
@@ -820,8 +820,12 @@ function clearClient(){
   const sel=document.getElementById('clientSelected'); sel.style.display='none'; sel.innerHTML=''
 }
 
-// 選択中タスク {id, name, min, count}
+// 選択中タスク {id, name, min, count}（旧・件数式。タイマー式へ移行）
 let selectedTasks = []
+// ─── 作業タイマー（工数の実測）───────────────────────────
+let runningTask = null   // {name, cat, standardMin, proj, startTs}
+let tickTimer = null
+let editingLogId = null
 
 // ─── 作業メモ ──────────────────────────────────────────────
 function getRole() { return localStorage.getItem('userRole') || '' }
@@ -861,7 +865,7 @@ async function buildTaskButtons() {
     <div class="cat-block">
       <div class="cat-label">${catName}</div>
       <div class="task-btns">
-        ${tasks.map(t => `<button class="task-btn" onclick="selectTask('${t.id}','${t.name.replace(/'/g,"\\'")}',${t.min})">
+        ${tasks.map(t => `<button class="task-btn" onclick="startTask('${t.name.replace(/'/g,"\\'")}',${t.min})">
           <span class="tb-name">${t.name}</span>
           <span class="tb-min">目安 ${t.min}分</span>
         </button>`).join('')}
@@ -970,6 +974,53 @@ function addFreeMemo() {
   }, 2000)
 }
 
+// 秒→表示
+function fmtHMS(sec){ sec=Math.max(0,Math.floor(sec)); const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60; return (h>0?h+':':'')+String(m).padStart(h>0?2:1,'0')+':'+String(s).padStart(2,'0') }
+function fmtDur(sec){ const m=Math.round((sec||0)/60); if(m<60) return m+'分'; return Math.floor(m/60)+'時間'+(m%60?(m%60)+'分':'') }
+function saveLogsSoon(){
+  clearTimeout(saveLogTimer)
+  saveLogTimer=setTimeout(()=>{ if(user&&GAS_URL) api('saveDayLogs',{staffId:user.id,staffName:user.name,date:todayKey(),logs:logs.filter(l=>l.date===todayKey())}).catch(()=>{}) },2000)
+}
+// 作業を開始（計測開始）。実行中の作業があれば自動で確定してから切替
+function startTask(name, standardMin){
+  name=(name||'').trim(); if(!name) return
+  if(attState!=='working'){ showErr('出勤中のみ作業を開始できます'); return }
+  if(runningTask) stopTask(true)
+  runningTask={ name, cat:getRole(), standardMin:Number(standardMin)||0, proj: selectedClient?clientLabel(selectedClient):'', startTs: nowTs() }
+  renderRunning()
+  if(!tickTimer) tickTimer=setInterval(renderRunning,1000)
+}
+function startFreeTask(){
+  const el=document.getElementById('freeMemoInput'); const t=(el.value||'').trim(); if(!t){el.focus();return}
+  startTask(t,0); el.value=''
+}
+// 計測を停止して記録
+function stopTask(record){
+  if(!runningTask) return
+  const dur=Math.max(1, nowTs()-runningTask.startTs)
+  if(record){
+    logs.unshift({ id:Date.now()+Math.random(), cat:runningTask.cat, catLabel: runningTask.standardMin?('目安'+runningTask.standardMin+'分'):'自由記述',
+      name:runningTask.name, proj:runningTask.proj, start:runningTask.startTs, startTs:runningTask.startTs,
+      duration:dur, durationSec:dur, itemCount:0, standardMin:runningTask.standardMin||0, date:todayKey() })
+    saveLogsSoon()
+  }
+  runningTask=null
+  if(tickTimer){ clearInterval(tickTimer); tickTimer=null }
+  renderRunning(); renderLogList()
+}
+function renderRunning(){
+  const card=document.getElementById('runningCard'); if(!card) return
+  if(!runningTask){ card.style.display='none'; card.innerHTML=''; return }
+  const dur=nowTs()-runningTask.startTs
+  const projLine=runningTask.proj?`<div style="font-size:11px;color:var(--p);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🏢 ${escClient(runningTask.proj)}</div>`:''
+  card.style.display='block'
+  card.innerHTML=`<div style="font-size:11px;color:var(--t2)">● 計測中</div>${projLine}
+    <div style="font-weight:600;font-size:14px;margin:2px 0">${escClient(runningTask.name)}</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:24px;font-variant-numeric:tabular-nums;font-weight:700">${fmtHMS(dur)}</div>
+      <button class="memo-save-btn" style="width:auto;margin:0;background:var(--warn,#e11)" onclick="stopTask(true)">■ 停止して記録</button>
+    </div>`
+}
 const todayLogs = () => logs.filter(l=>l.date===todayKey())
 function renderLogList() {
   const list = document.getElementById('logList')
@@ -978,13 +1029,36 @@ function renderLogList() {
   list.querySelectorAll('.li').forEach(e=>e.remove())
   tl.forEach(l=>{
     const div=document.createElement('div'); div.className='li'
-    const cntStr = l.itemCount>0 ? `<span class="lc">${l.itemCount}件 / ${l.itemCount * (l.durationSec/l.itemCount/60)|0}分</span>` : ''
     const projStr = l.proj ? `<span class="ln" style="color:var(--p)">🏢 ${escClient(l.proj)}</span>` : ''
-    div.innerHTML=`<span class="lt">${l.name}</span><span class="ln">${l.catLabel||l.name}</span>${projStr}${cntStr}<button class="ld" onclick="delLog(${l.id})">×</button>`
+    if (l.id === editingLogId) {
+      div.innerHTML=`<span class="lt">${escClient(l.name)}</span><input type="number" id="editMin_${l.id}" value="${Math.round((l.durationSec||0)/60)}" min="0" style="width:64px;font-size:13px">分 <button class="ld" style="color:var(--p)" onclick="saveLogTime(${l.id})">保存</button>`
+    } else {
+      const timeStr = `<span class="lc">${fmtDur(l.durationSec||0)}</span>`
+      div.innerHTML=`<span class="lt">${escClient(l.name)}</span>${projStr}${timeStr}<button class="ld" title="時間を修正" onclick="editLogTime(${l.id})">✎</button><button class="ld" onclick="delLog(${l.id})">×</button>`
+    }
     list.appendChild(div)
   })
+  renderDaySummary()
 }
-function delLog(id) { logs=logs.filter(l=>l.id!==id); renderLogList() }
+function editLogTime(id){ editingLogId=id; renderLogList() }
+function saveLogTime(id){
+  const l=logs.find(x=>x.id===id); const inp=document.getElementById('editMin_'+id)
+  if(l&&inp){ const m=Math.max(0,parseInt(inp.value,10)||0); l.durationSec=m*60; l.duration=m*60; saveLogsSoon() }
+  editingLogId=null; renderLogList()
+}
+function delLog(id) { logs=logs.filter(l=>l.id!==id); saveLogsSoon(); renderLogList() }
+// 本日の内訳（顧客別の合計時間）＝工数の見える化
+function renderDaySummary(){
+  const el=document.getElementById('daySummary'); if(!el) return
+  const tl=todayLogs()
+  if(!tl.length){ el.style.display='none'; el.innerHTML=''; return }
+  const total=tl.reduce((a,l)=>a+(l.durationSec||0),0)
+  const byClient={}; tl.forEach(l=>{ const k=l.proj||'（顧客なし）'; byClient[k]=(byClient[k]||0)+(l.durationSec||0) })
+  const rows=Object.entries(byClient).sort((a,b)=>b[1]-a[1]).map(([k,s])=>
+    `<div style="display:flex;justify-content:space-between;font-size:11px;padding:1px 0;gap:8px"><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escClient(k)}</span><span style="white-space:nowrap">${fmtDur(s)}</span></div>`).join('')
+  el.style.display='block'
+  el.innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:3px">本日の内訳（合計 ${fmtDur(total)}）</div>${rows}`
+}
 
 // ─── 実績 ─────────────────────────────────────────────────
 async function renderGraph() {
