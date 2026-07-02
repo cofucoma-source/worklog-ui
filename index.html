@@ -351,6 +351,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Helvetica
         <span class="ms-ttl">今日の作業（必須・退勤前に記録）</span>
         <span class="ms-role" id="roleLabel">—</span>
       </div>
+      <div class="client-box" style="margin:4px 0 8px">
+        <input type="text" id="clientSearch" class="name-inp" style="margin-bottom:4px" placeholder="🔍 顧客番号・会社名・店舗名で検索" autocomplete="off" onfocus="loadClients()" oninput="onClientSearch()">
+        <div id="clientResults" style="display:none;max-height:170px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg2)"></div>
+        <div id="clientSelected" style="display:none;font-size:12px;color:var(--text);background:var(--pb);border:1px solid var(--pbd);border-radius:8px;padding:6px 10px;margin-top:4px"></div>
+      </div>
       <div id="taskButtonArea"></div>
       <div class="selected-tasks" id="selectedTasks" style="display:none"></div>
       <button class="memo-save-btn" id="memoSaveBtn" onclick="saveMemo()" style="display:none">記録する</button>
@@ -768,6 +773,45 @@ async function loadTaskMaster() {
   }
 }
 
+// ─── 顧客検索（別スプレッドシートの企業情報マスタ）────────────
+let clientsCache = null, clientsLoading = false, selectedClient = null, clientHits = []
+function escClient(s){ return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) }
+function clientLabel(c){ return c.no + ' ' + c.company + (c.store ? ' / ' + c.store : '') }
+async function loadClients(){
+  if (clientsCache || clientsLoading || !GAS_URL) return
+  clientsLoading = true
+  try { clientsCache = await api('getClients') || [] } catch(e) { clientsCache = [] }
+  clientsLoading = false
+}
+function onClientSearch(){
+  const q = (document.getElementById('clientSearch').value || '').trim().toLowerCase()
+  const box = document.getElementById('clientResults')
+  if (!q) { box.style.display='none'; box.innerHTML=''; return }
+  if (!clientsCache) { loadClients().then(onClientSearch); box.innerHTML='<div style="padding:8px;font-size:12px;color:var(--t3)">読み込み中…</div>'; box.style.display='block'; return }
+  clientHits = clientsCache.filter(c =>
+    (c.no||'').toLowerCase().includes(q) ||
+    (c.company||'').toLowerCase().includes(q) ||
+    (c.store||'').toLowerCase().includes(q)
+  ).slice(0, 40)
+  if (clientHits.length === 0) { box.innerHTML='<div style="padding:8px;font-size:12px;color:var(--t3)">該当なし</div>'; box.style.display='block'; return }
+  box.innerHTML = clientHits.map((c,i)=>`<div style="padding:7px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border)" onclick="pickClientIdx(${i})">${escClient(c.no)} <b>${escClient(c.company)}</b>${c.store?' / '+escClient(c.store):''}</div>`).join('')
+  box.style.display = 'block'
+}
+function pickClientIdx(i){ pickClient(clientHits[i]) }
+function pickClient(c){
+  if (!c) return
+  selectedClient = c
+  document.getElementById('clientSearch').value = ''
+  const box=document.getElementById('clientResults'); box.style.display='none'; box.innerHTML=''
+  const sel=document.getElementById('clientSelected')
+  sel.innerHTML = '選択中: ' + escClient(clientLabel(c)) + ' <span style="cursor:pointer;color:var(--warn);font-weight:600;margin-left:8px" onclick="clearClient()">×解除</span>'
+  sel.style.display='block'
+}
+function clearClient(){
+  selectedClient = null
+  const sel=document.getElementById('clientSelected'); sel.style.display='none'; sel.innerHTML=''
+}
+
 // 選択中タスク {id, name, min, count}
 let selectedTasks = []
 
@@ -874,7 +918,7 @@ function saveMemo() {
       cat: getRole(),
       catLabel: t.name,
       name: t.name,
-      proj: '',
+      proj: selectedClient ? clientLabel(selectedClient) : '',
       start: now - durationSec,
       startTs: now - durationSec,
       duration: durationSec,
@@ -904,7 +948,7 @@ function addFreeMemo() {
     cat: getRole(),
     catLabel: '自由記述',
     name: txt,
-    proj: '',
+    proj: selectedClient ? clientLabel(selectedClient) : '',
     start: now, startTs: now,
     duration: 0, durationSec: 0,
     itemCount: 0,
@@ -927,7 +971,8 @@ function renderLogList() {
   tl.forEach(l=>{
     const div=document.createElement('div'); div.className='li'
     const cntStr = l.itemCount>0 ? `<span class="lc">${l.itemCount}件 / ${l.itemCount * (l.durationSec/l.itemCount/60)|0}分</span>` : ''
-    div.innerHTML=`<span class="lt">${l.name}</span><span class="ln">${l.catLabel||l.name}</span>${cntStr}<button class="ld" onclick="delLog(${l.id})">×</button>`
+    const projStr = l.proj ? `<span class="ln" style="color:var(--p)">🏢 ${escClient(l.proj)}</span>` : ''
+    div.innerHTML=`<span class="lt">${l.name}</span><span class="ln">${l.catLabel||l.name}</span>${projStr}${cntStr}<button class="ld" onclick="delLog(${l.id})">×</button>`
     list.appendChild(div)
   })
 }
