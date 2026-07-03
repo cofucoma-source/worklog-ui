@@ -351,6 +351,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Helvetica
         <span class="ms-ttl">今日の作業（必須・退勤前に記録）</span>
         <span class="ms-role" id="roleLabel">—</span>
       </div>
+      <div id="coverLine" style="display:none;font-size:12px;background:var(--bg3);border-radius:8px;padding:7px 10px;margin:4px 0"></div>
       <div class="client-box" style="margin:4px 0 8px">
         <input type="text" id="clientSearch" class="name-inp" style="margin-bottom:4px" placeholder="🔍 顧客番号・会社名・店舗名で検索" autocomplete="off" onfocus="loadClients()" oninput="onClientSearch()">
         <div id="clientResults" style="display:none;max-height:170px;overflow:auto;border:1px solid var(--border);border-radius:8px;background:var(--bg2)"></div>
@@ -658,6 +659,7 @@ function updateWorkingUI() {
   const elapsed = nowTs() - Number(attRec.clockInTs) - Number(attRec.breakSec||0)
   document.getElementById('mainTimer').textContent = fmtSec(Math.max(0,elapsed))
   document.getElementById('attSince').textContent = '出勤 '+fmtTime(Number(attRec.clockInTs))+'〜'
+  renderCoverage()
 }
 function updateBreakUI() {
   const elapsed = nowTs() - breakStartTs
@@ -1021,6 +1023,20 @@ function renderRunning(){
       <button class="memo-save-btn" style="width:auto;margin:0;background:var(--warn,#e11)" onclick="stopTask(true)">■ 停止して記録</button>
     </div>`
 }
+// 実働 vs 記録済み を見せて、未記録を自分で埋めてもらう（カバー率向上の自己チェック）
+function renderCoverage(){
+  const el=document.getElementById('coverLine'); if(!el) return
+  if(!attRec){ el.style.display='none'; return }
+  let worked = (Number(attRec.clockOutTs||0)>0) ? (Number(attRec.workSec)||0)
+             : (nowTs()-Number(attRec.clockInTs)-Number(attRec.breakSec||0))
+  worked=Math.max(0,worked)
+  let logged = todayLogs().reduce((a,l)=>a+(l.durationSec||0),0) + (runningTask?(nowTs()-runningTask.startTs):0)
+  const gap=Math.max(0, worked-logged)
+  const warn = gap>=600  // 10分以上未記録なら注意色
+  el.style.display='block'
+  el.innerHTML=`本日 実働 <b>${fmtDur(worked)}</b> ／ 記録済み <b>${fmtDur(logged)}</b>　`
+    +`<span style="color:${warn?'var(--warn,#e11)':'var(--t2)'}">未記録 ${fmtDur(gap)}</span>`
+}
 const todayLogs = () => logs.filter(l=>l.date===todayKey())
 function renderLogList() {
   const list = document.getElementById('logList')
@@ -1039,6 +1055,7 @@ function renderLogList() {
     list.appendChild(div)
   })
   renderDaySummary()
+  renderCoverage()
 }
 function editLogTime(id){ editingLogId=id; renderLogList() }
 function saveLogTime(id){
